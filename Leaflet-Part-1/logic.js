@@ -1,67 +1,110 @@
-// Store our API endpoint as queryUrl.
-let queryUrl = "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2021-01-01&endtime=2021-01-02&maxlongitude=-69.52148437&minlongitude=-123.83789062&maxlatitude=48.74894534&minlatitude=25.16517337";
-function createMap(earthquakes) {
+// Store API endpoint as queryURL
+var queryURL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson";
 
-  // Create the base layers.
-  var street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  })
-
-  var topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-    attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
+// Perform get request to query URL
+d3.json(queryURL).then(function(data){
+    // Send the data.features and data.features object to the createFeatures function
+    createFeatures(data.features);
   });
+    
+function createFeatures(earthquakeData){
 
-  // Create a baseMaps object.
-  var baseMaps = {
-    "Street Map": street,
-    "Topographic Map": topo
+    // Give each feature a popup with location, magnitude, and depth of earthquakes
+    function onEachFeature(feature, layer){
+        layer.bindPopup(`<h3>Location: ${feature.properties.place}</p><hr><p>Magnitude: ${feature.properties.mag}</p><hr><p>Depth: ${feature.geometry.coordinates[2]}`);
+    }
+
+    // Create a GeoJSON layer containing the features array on the earthquakeData object
+    function createCircleMarker(feature, latlng){
+       let options = {
+        radius:feature.properties.mag*5,
+        fillColor: chooseColor(feature.geometry.coordinates[2]),
+        color: "black",
+        weight: 1,
+        fillOpacity: .7,
+       } 
+       return L.circleMarker(latlng,options);
+    }
+    // Create a variable for earthquakes to house latlng, features for popup, and cicrleMarker properties
+    let earthquakes = L.geoJSON(earthquakeData, {
+        onEachFeature: onEachFeature,
+        pointToLayer: createCircleMarker
+    });
+
+    // Send earthquakes layer to createMap function
+    createMap(earthquakes);
+}
+
+// Circles color palette based on depth
+function chooseColor(depth){
+    switch(true){
+        case(depth <= 10):
+            return "#99FF00"; 
+        case (10 <= depth && depth <=30):
+            return "#FFFF00";
+        case (30 <= depth && depth <=50):
+            return "#FFCC00";
+        case (50 <= depth && depth <= 70):
+            return "#FF9900";
+        case (70 <= depth && depth <=90):
+            return "#FF6600";
+        case (90 <= depth):
+            return "#FF0000";
+    }
+}
+
+// Create map legend for depth colors
+let legend = L.control({position: 'bottomright'});
+
+legend.onAdd = function() {
+    var div = L.DomUtil.create('div', 'info legend');
+    var grades = [-10, 10, 30, 50, 70, 90];
+    var labels = [];
+    var legendInfo = "<h4>Earthquake Depth</h4>";
+
+    div.innerHTML = legendInfo
+
+    // go through each depth item for legend
+
+    for (var i = 0; i < grades.length; i++) {
+          labels.push('<ul style="background-color:' + chooseColor(grades[i] + 1) + '"> <span>' + grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '' : '+') + '</span></ul>');
+        }
+
+      // add each label list item to the div under the <ul> tag
+      div.innerHTML += "<ul>" + labels.join("") + "</ul>";
+    
+    return div;
   };
 
-  // Create an overlay object to hold our overlay.
-  var overlayMaps = {
+// Create map
+function createMap(earthquakes) {
+   // Define street layer
+   let street =  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  });
+
+  // Define a baseMaps 
+  let baseMaps = {
+    "Street": street
+  };
+
+  // Create overlay object to hold earthquakes
+  let overlayMaps = {
     Earthquakes: earthquakes
   };
 
-  // Create our map, giving it the streetmap and earthquakes layers to display on load.
-  var myMap = L.map("map", {
+  // Create map with street and earthquake layers
+  let myMap = L.map("map", {
     center: [
-      37.09, -95.71
+      44.9778, -93.2650
     ],
-    zoom: 5,
+    zoom: 4,
     layers: [street, earthquakes]
   });
 
-  // Create a layer control.
-  // Pass it our baseMaps and overlayMaps.
-  // Add the layer control to the map.
+  // Add layer control to the map
   L.control.layers(baseMaps, overlayMaps, {
     collapsed: false
   }).addTo(myMap);
-
+  legend.addTo(myMap);
 }
-
-
-// Perform a GET request to the query URL/
-d3.json(queryUrl).then(function (data) {
-  // Once we get a response, send the data.features object to the createFeatures function.
-  createFeatures(data.features);
-});
-
-function createFeatures(earthquakeData) {
-
-  // Define a function that we want to run once for each feature in the features array.
-  // Give each feature a popup that describes the place and time of the earthquake.
-  function onEachFeature(feature, layer) {
-    layer.bindPopup(`<h3>${feature.properties.place}</h3><hr><p>${new Date(feature.properties.time)}</p>`);
-  }
-
-  // Create a GeoJSON layer that contains the features array on the earthquakeData object.
-  // Run the onEachFeature function once for each piece of data in the array.
-  var earthquakes = L.geoJSON(earthquakeData, {
-    onEachFeature: onEachFeature
-  });
-
-  // Send our earthquakes layer to the createMap function/
-  createMap(earthquakes);
-}
-
